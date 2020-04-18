@@ -1,0 +1,1652 @@
+:scrollbar:
+:data-uri:
+:toc2:
+:imagesdir: images
+
+= RHEL Automation with Ansible - Latam Tech Office Workshop series
+
+:numbered:
+
+== Description
+
+In this workshop we will be showing an important part of any platform administration, which is the operating system management. A lot of the tasks with the operating system are manual and repetitive, and impose several disadvantages regarding time spent in such activities, complexity associated with management procedures, lack of control in more complex activities and errors in which the administrator could be involved due to human nature.
+
+Much has been said and written about the new hybrid and multicloud era. At this moment in time, manual tasks supported by human intervention could be the wrong way to transit, just because the scale and complexity requires assistance to be efficient enough to keep the pace of growing.
+
+The Ansible tool, as described officially defines  "a radically simple IT automation engine that automates cloud provisioning, configuration management, application deployment, intra-service orchestration, and many other IT needs." 
+
+This workshop is aimed to show you how easy it is to plan and use ansible for automating the most common administration tasks RHEL could require on a day by day basis.
+
+Also, not so common tasks will be shown in order to give you the tools for your daily work in the datacenter.
+
+== Audience
+IT Managers, Architects and technical staff who operates Linux
+
+== Create a virtual Environment for the workshop
+
+=== Install Virtualbox
+
+* Download virtualbox from https://www.virtualbox.org/wiki/Downloads
+* Install and configure the host-only network 
+* Go to File/Host Network Manager… or Ctrl+H
+* Push the create Button
+* A Virtualbox Host-Only Ethernet Adapter will be created
+* Select it and configure the ip address and mask
+
+image::host_network_manager_ip_mask_config.png[Host network manager ip and mask config]
+
+* Then activate and configure the DHCP server
+
+image::dhcp_activation.png[dhcp server activation]
+
+* Now, all the servers which have a host only network interface configured will be enabled to communicate with each other.
+* The virtual machines imported in the next steps have configured 2 network interfaces.
+- A NAT interface for internet connection
+- A Host Only Network Interface for the internal networking, which is required to communicate the control and managed host.
+
+=== Download the RHEL 8x virtual machine
+
+
+* Download the unregistered appliance from 
+https://1drv.ms/u/s!AjxeDEQoUvfXmgEVes7JRvcp-Hpc?e=FVQN1G[RHEL 8.1 virtual machine (.ova)^]
+* Import the MV to VirtualBox.
+* Rename the MV to “RHEL8x control node”.
+* Boot the server
+* Login with user: root, password: ltodemos
+* Change the hostname
+
+[source,bash]
+-----------------
+# hostnamectl set-hostname controlhost
+-----------------
+
+* Register the server with your development account. You can get the developer subscription at https://developers.redhat.com/register.
+
+[source,bash]
+-----------------
+# subscription-manager register --auto-attach
+-----------------
+* Introduce your username and password with your subscription credentials.
+* Update the server
+
+[source,bash]
+-----------------
+# yum update
+-----------------
+
+=== Clone the machine to create a managed host server
+
+* Do a poweroff from the rhel server already installed
+* From VirtualBox, select the MV and clone it executing (menu) machine/clone or (Ctrl-O) to clone the server to be a managed host.
+* Define a new MAC address policy to a “generate a new MAC address for all network adapters”
+* Change the name to “RHEL8x managed host”.
+* Boot the server
+* Login with user: root, password: ltodemos
+* Change the hostname
+
+[source,bash]
+-----------------
+# hostnamectl set-hostname managedhost
+-----------------
+* Register the server with your development account
+
+[source,bash]
+-----------------
+# subscription-manager register --auto-attach
+-----------------
+
+* Introduce your username and password with your subscription credentials.
+
+=== Find out the IP addresses of both servers
+
+Login in both servers and check their IP addresses issuing
+
+[source,bash]
+-----------------
+# ifconfig enp0s8
+-----------------
+
+Write down the ip for future references.
+
+=== Document the information of the servers
+
+Fill the table below.
+
+[options="header"]
+|=======================
+|Server | ip address
+|Control host |
+|Managed host |
+|=======================
+
+[NOTE]
+At this point you have 2 servers, a control host and a managed host. These are the servers you need to follow this workshop.
+
+== What is Ansible and how this fits in my daily work?
+=== Automation!
+
+As the Encyclopedia Britannica defines, “automation can be defined as a technology concerned with performing a process by means of programmed commands combined with automatic feedback control to ensure proper execution of the instructions. The resulting system is capable of operating without human intervention.” 
+
+Automation has been with us for years, indeed the evolution of humanity is based on the notion of “how do I automate a process with repetitive tasks, in order to be more accurate, precise and fast in the execution”.
+
+History is plagued with stories of automation. Gutenberg Printing Press, The Ford’s production line, Coffee machines, Bread Making Machine, Spotify, Amazon online, etc, etc, etc.
+
+In the IT world, automation is even more necessary to execute repetitive tasks to bring a system to its usability state. This is where Ansible comes in this movie.
+
+From https://www.ansible.com/overview/how-ansible-works we can rescue the following description:
+
+“Ansible is a radically simple IT automation engine that automates cloud provisioning, configuration management, application deployment, intra-service orchestration, and many other IT needs.”
+
+The vast majority of activities you execute on a daily basis for managing and configuring your RHEL (or any other linux or windows OS) can be expressed as a playbook and done automatically on managed hosts.
+
+The goal of this workshop is to propose to participants a practical view of what Ansible can do for helping administrators and developers execute repetitive tasks on the management side of RHEL, in order to be more productive in less time.
+
+== Some Ansible basics
+
+=== Control node
+
+Any machine with Ansible installed. You can run commands and playbooks, invoking /usr/bin/ansible or /usr/bin/ansible-playbook, from any control node. You can use any computer that has Python installed on it as a control node - laptops, shared desktops, and servers can all run Ansible. However, you cannot use a Windows machine as a control node. You can have multiple control nodes.
+
+=== Managed nodes
+
+The network devices (and/or servers) you manage with Ansible. Managed nodes are also sometimes called “hosts”. Ansible is not installed on managed nodes.
+
+=== Inventory
+
+A list of managed nodes. An inventory file is also sometimes called a “hostfile”. Your inventory can specify information like IP address for each managed node. An inventory can also organize managed nodes, creating and nesting groups for easier scaling.
+
+=== Modules 
+
+The units of code Ansible executes. Each module has a particular use, from administering users on a specific type of database to managing VLAN interfaces on a specific type of network device. You can invoke a single module with a task, or invoke several different modules in a playbook.
+
+=== Tasks
+
+The units of action in Ansible. You can execute a single task once with an ad-hoc command.
+
+=== Playbooks
+
+Ordered lists of tasks, saved so you can run those tasks in that order repeatedly. Playbooks can include variables as well as tasks. Playbooks are written in YAML and are easy to read, write, share and understand. 
+
+=== Places to get more information
+
+|=======================
+|https://docs.ansible.com/ansible/latest/network/getting_started/basic_concepts.html
+|https://www.ansible.com/overview/how-ansible-work
+|=======================
+
+== Preparing the environment
+=== Installing the Ansible control host
+==== Log In in the Control Node
+
+Use the root account with ltodemos password to log in to this server with the IP logged in previous steps.
+
+[NOTE]
+If you are in Windows you can download putty for conveniently create 2 entries for log in to the control and management hosts.
+
+==== Finding the repository
+[source,bash]
+-----------------
+# yum repolist all | grep -i ansible
+
+ansible-2-for-rhel-8-x86_64-debug-rpms     Red Hat Ans disabled
+ansible-2-for-rhel-8-x86_64-rpms           Red Hat Ans disabled
+ansible-2-for-rhel-8-x86_64-source-rpms    Red Hat Ans disabled
+Ansible-2.8-for-rhel-8-x86_64-debug-rpms   Red Hat Ans disabled
+ansible-2.8-for-rhel-8-x86_64-rpms         Red Hat Ans disabled
+ansible-2.8-for-rhel-8-x86_64-source-rpms  Red Hat Ans disabled
+ansible-2.9-for-rhel-8-x86_64-debug-rpms   Red Hat Ans disabled
+ansible-2.9-for-rhel-8-x86_64-rpms         Red Hat Ans disabled
+ansible-2.9-for-rhel-8-x86_64-source-rpms  Red Hat Ans disabled
+-----------------
+==== Enabling the repository
+
+[source,bash]
+-----------------
+# subscription-manager repos --enable ansible-2.9-for-rhel-8-x86_64-rpms
+-----------------
+
+==== Installing Ansible and its dependencies
+[source,bash]
+-----------------
+# yum install ansible -y
+-----------------
+
+==== Check everything is ok
+[source,bash]
+-----------------
+# ansible --version
+ansible 2.9.2
+config file = /etc/ansible/ansible.cfg
+configured module search path = ['/root/.ansible/plugins/modules', '/usr/share/ansible/plugins/modules']
+ansible python module location = /usr/lib/python3.6/site-packages/ansible
+executable location = /usr/bin/ansible
+python version = 3.6.8 (default, Oct 11 2019, 15:04:54) [GCC 8.3.1 20190507 (Red Hat 8.3.1-4)]
+-----------------
+
+[NOTE]
+In this stage, everything is set up for going forward and start automation!
+
+== Enabling trust between Ansible control node and managed hosts
+To speed up any of the actions proposed in this workshop we recommend creating a trust domain, which is easy to do following a simple steps.
+
+==== Log in in the control node
+
+When asking for a password just press enter.
+
+[source,bash]
+-----------------
+# ssh-keygen -t rsa
+
+Generating public/private rsa key pair.
+Enter file in which to save the key (/root/.ssh/id_rsa):
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /root/.ssh/id_rsa.
+Your public key has been saved in /root/.ssh/id_rsa.pub.
+The key fingerprint is:
+SHA256:Ka1jUHpXm0z7fZ1fJYCWqU5ejMmkJWbyj63Cu44I49s root@controlnode
+The key's randomart image is:
++---[RSA 3072]----+
+|                 |
+|           +     |
+|    . = o B .    |
+|     B B @ + .   |
+|    o = S B   . .|
+|     o @ . . . .+|
+|o  .  = =   . ..+|
+|oo..o. o       .o|
+|.ooE++.         .|
++----[SHA256]-----+
+-----------------
+
+==== Copy the certificate on the managed host
+
+[source,bash]
+-----------------
+# ssh-copy-id root@managedhost
+
+/usr/bin/ssh-copy-id: INFO: Source of key(s) to be installed: "/root/.ssh/id_rsa.pub"
+/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
+/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
+root@192.168.56.121's password:
+
+Number of key(s) added: 1
+
+Now try logging into the machine, with:   ssh root@192.168.56.121
+and check to make sure that only the key(s) you wanted were added.
+-----------------
+
+[NOTE]
+Now there is trust between control and managed host. We are ready for the next step.
+
+== Checking everything is OK for start automating tasks
+
+Our first task is to check if our control node is able to execute a module on the managed host. This is very simple executing an ad-hoc command.
+
+From control node execute the following command replacing ipmanagedhosts with the IP address of your managed host
+
+[source, bash]
+-------------------
+# ansible all -i 'ip_of_managed_hosts,' -m ping
+
+ipmanagedhosts | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/libexec/platform-python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
+-------------------
+
+An example with the ip 192.168.56.119 as the managed host.
+
+[source, bash]
+-------------------
+# ansible all -i '192.168.56.119,' -m ping
+
+192.168.56.119 | SUCCESS => {
+    "ansible_facts": {
+        "discovered_interpreter_python": "/usr/libexec/platform-python"
+    },
+    "changed": false,
+    "ping": "pong"
+}
+-------------------
+
+[NOTE]
+Look at the tag “ping” at the end of the JSON returned. If everything is ok, the result is “pong”
+
+[NOTE]
+Ping Module: This module is used to connect to the host, verify a usable python and return pong on success
+
+== How Can I find a Module?
+
+=== Modules are a fundamental part of Ansible
+Modules do a variety of tasks that can be included in playbooks for automating complex procedures.
+
+The best part of modules is that they are very well documented, so is a nice journey to go to the big list and see what they can do for us.
+Accessing the module documentation
+https://docs.ansible.com/ansible/latest/modules/modules_by_category.html 
+Let’s find our first module
+
+We can run ad-hoc commands on managed hosts with the module “command”. 
+
+The module can be found at
+
+https://docs.ansible.com/ansible/latest/modules/command_module.html?highlight=command
+
+Let’s find out if the module cab me executed as an ad-hoc command
+
+[source,bash]
+--------------------
+#  ansible all -i '192.168.56.119,' -m command -a "cat /etc/motd"
+
+192.168.56.119 | CHANGED | rc=0 >>
+  _____          _   _    _       _
+ |  __ \        | | | |  | |     | |
+ | |__) |___  __| | | |__| | __ _| |_
+ |  _  // _ \/ _` | |  __  |/ _` | __|
+ | | \ \  __/ (_| | | |  | | (_| | |_
+ |_|  \_\___|\__,_| |_|  |_|\__,_|\__|
+  _   _______ ____        _
+ | | |__   __/ __ \      | |
+ | |    | | | |  | |   __| | ___ _ __ ___   ___  ___
+ | |    | | | |  | |  / _` |/ _ \ '_ ` _ \ / _ \/ __|
+ | |____| | | |__| | | (_| |  __/ | | | | | (_) \__ \
+ |______|_|  \____/   \__,_|\___|_| |_| |_|\___/|___/
+--------------------
+
+So Far So Good!
+
+== Automating RHEL Administration
+
+=== Why Automate my daily work?
+
+It is a good question. There are several reasons why automation could save my life as an administrator.
+
+But, let me be clear. My job is important as an administrator, and it could be even more important if I use my time and effort wisely to propose new ways of executing tasks making my company make more revenue. Isn't that great?
+
+We are going to look at the different perspectives why automation is so important as far as a RHEL administration is concerned.
+
+=== Saving Time
+
+First and foremost, automation can be used to save time. If I save time doing every day work, I can do more, but this is only the tip of the iceberg.
+
+=== Get more control over my daily tasks
+
+Having a tool that does exactly what it is supposed to do, all the time, could give administrators peace of mind doing repetitive configuration and deployment tasks. More control over my daily job with more confidence. 
+
+=== Minimize errors
+
+After a playbook is created and tested, it will be executed in exactly the same way, all the time. No human errors due to misspelled commands or enter key error.
+
+=== Execute complex tasks in a consistent way
+
+Every time a procedure is executed, no matter how complex it is, administrators could expect the same results, in one server or in a huge amount of them.
+
+=== Scale in huge platforms
+
+Ansible can assist to execute tasks in 1, 2 or n servers, locally or remotely located. The real power of ansible is the ability to delegate complex and extensive jobs to the angine in order to it to take care of the execution cna completion.
+Document well my job
+
+One of the nice features of ansible is that the output of every playbook executed could be used to document what happened in every run. This is proof of execution that can be used to create more complex management documents.
+
+=== Get more confident in what I am doing in a production environment
+
+When we often execute playbooks with predecible results every time, is natural to be confident about tasks otherwise need to be done manually and are prone to human errors.
+
+== Configuring some defaults
+
+For this workshop we need to create some defaults in order to have the basics to execute playbooks in a straightforward manner.
+
+=== Creating the ansible path and inventory
+
+[source,bash]
+----------------------
+# mkdir /root/ansible
+# cd /root/ansible
+# echo  $'[managedhosts] \nip_address' > inventory
+
+The ipaddress must be replaced by the ip of the managed hosts. 
+
+In the example below the ip address of the managed host in the lab is 192.168.56.119.
+
+# echo  $'[managedhosts] \n192.168.56.119' > inventory
+
+# more inventory
+[managedhosts]
+192.168.56.119
+----------------------
+
+== Automating an Application Deployment
+
+=== Why?
+
+Be repeatable when an application deployment is concerned is crucial to survive in this automated world, where virtualization and cloud naive applications have taken control of a lot of aspects of our data centers.
+
+Having the ability to deploy complex layouts and architectures in a virtualized environment, on-premise or not, is part of being at the speed of the 4th revolution.
+
+Automated scalability in many cases is the name of the game, so whether it is the first time the application is deployed or several instances are needed to keep up with the demand, we need tools that keep us apart from the time consuming and error prone manual tasks.
+
+This workshop has the main goal of showing you how to use ansible to deploy an application, from the RHEL management perspective.
+
+Let’s get our hands dirty from now on...
+
+=== The application
+
+For this workshop we are going to implement a simple yet powerful general purpose application that could be used for multiple purposes. This app is a simple service provider that can be customized for any requirement in which there exists the necessity of access to the services to obtain something… bare with me, so I am going to explain this in detail.
+
+=== The architecture
+
+image::apparchitecture.png[Architecture Diagram]
+
+=== The webChat layer
+
+This layer exposes through the port 8080 a web interface to interact with, also expose an api.
+
+* https://server_ip:8080/chat redirect to the app
+* https://server_ip:8080/api?chat&question= define a simple api to ask to the service
+
+Needless to say that it needs the engine up & running for working properly.
+
+=== The engine layer
+
+This layer exposes through the port 9095 via linux sockets a chat service.
+
+* server_ip:9095/chat can be interrogated with an ansible question.
+
+This service is essential for the webChat layer to work properly.
+
+=== Creating the disk facilities for installing the application
+
+We need to copy the source code to our managed hosts. Every managed host has 2 devices on /dev for creating a volume group. Such is the case of:
+
+- /dev/sdb
+- /dev/sdc
+
+We need to create a volume group out of these two devices. This volume group will be named as *chatbotVG*. Inside this volume group we are going to create a logical volume named *data*. This logical volume will be mounted in a directory called /home/chatbot. This needs to be translated to a Playbook for automating this OS admin tasks in a consistent way.
+
+Let's begin by checking that boths devices are present
+
+[source,bash]
+---------------------
+# vim chatbotCreateFilesystem.yml
+
+---
+  - name: Creating the chatbot filesystem
+    
+    hosts: '{{ hosts2manage | default("managedhosts") }}'
+    
+    become: yes
+    become_user: root
+
+    tasks:
+
+      - name: check sdb
+        block:
+          - name: checking for device /dev/sdb
+            set_fact: proceedWithInstallation=yes
+            when:  hostvars[inventory_hostname]["ansible_facts"]["devices"]["sdb"] 
+        rescue:
+          - name: Device /dev/sdb does not exist!
+            set_fact: proceedWithInstallation=no
+          
+
+      - name: check sdc
+        block:
+          - name: checking for device /dev/sdc
+            set_fact: proceedWithInstallation=yes
+            when:  hostvars[inventory_hostname]["ansible_facts"]["devices"]["sdc"] 
+        rescue:
+          - name: Device /dev/sdc does not exist!
+            set_fact: proceedWithInstallation=no
+        when:
+          - hostvars[inventory_hostname]['proceedWithInstallation']
+...
+---------------------
+
+The playbook needs hosts to operate on. We are using here a JINJA2 template and the "default" filter to tell Ansible that hosts to operate on must be took from the defualt value, which is "hostsmanaged" or from "--extra-vars" values which needs to be defined as *--extra-vars* "hosts2manage=whichever host we need to operate on".  
+
+We need to create filessystems and mount them, and this activities need privileges, so we are instructing Ansible to escalate privileges with *become* clause set to true. We are also telling Ansible to become to the root user, with *become_user* clause, to execute all the actions defined in the playbook's *tasks* section.
+
+Here we have coded a Block. A block enables us to manage errors easily. We start with hosts: managedhosts as in inventory file has been set. For each IP address present in the group "managedhosts", ansible will execute the actions inside "TASKS" directive. 
+
+We are going to check the "hostvars" content, which is populated when the *gather_facts* module is automatically executed. In this case we are checking the value of the dictionary with hostvars[inventory_hostname]["ansible_facts"]["devices"]["sdb"] (and sdc) to determine if sdb/sdc exist.
+
+[NOTE]
+https://docs.ansible.com/ansible/latest/modules/gather_facts_module.html[gather_facts module reference]
+
+[NOTE]
+hostvars is a dictionary keyed by each host.
+
+In case one or both devices are not present, a fact is created called "proceedWithInstallation", which is global, that will be useful to execute the rest of our playbook. If this variable is set to "no", further installation won't be executed. This occurs in the *rescue* clause where we use *set_fact* module to update the "proceedWithIntsllation" variable.
+
+The trick here is to use the *when* clause to check for the existance of the device in the facts gathered. 
+
+*when:  hostvars[inventory_hostname]["ansible_facts"]["devices"]["sdb"]*
+
+Here the *when* clause needs to check if this value is present with the keys "devices" and "sdb". 
+
+After we check the existence of our devices we proceed to create the volume group and logical volume to be mounted.
+
+So, let's see the next part of our playbook.
+
+[source,bash]
+--------------------
+...
+      - name: creating disk facilities
+        block:
+          - name: Creating chatbot Volume group.
+            lvg:
+              pvs: "/dev/sdb,/dev/sdc"
+              vg: "chatbotVG"
+              pv_options: '-Z y'
+              force: no
+              state: present
+
+          - name: Creating data Logical Volume.
+            lvol:
+              vg: "chatbotVG"
+              lv: "data"
+              size: 10g
+              active: yes
+              force: no
+              state: present
+
+          - name: Creating a XFS filesystem on lvm /dev/mapper/chatbotVG-data.
+            filesystem:
+              fstype: "xfs"
+              dev: "/dev/mapper/chatbotVG-data"
+              force: no
+
+          - name: Creating the mounting point /home/chatbot.
+            file:
+              path: "/home/chatbot/"
+              state: directory
+              mode: '0700'
+
+          - name: Mount the  filesystem.
+            mount:
+              path: "/home/chatbot"
+              src: "/dev/mapper/chatbotVG-data"
+              fstype: "xfs"
+              opts: rw,nosuid,noexec
+              state: mounted
+
+        when:
+          - hostvars[inventory_hostname]['proceedWithInstallation']
+
+        
+      - name: Error on disk creation results
+        debug: 
+          msg: "An error occured when trying to create the disk facilities for the chatbot, aborting installation! {{hostvars[inventory_hostname]['proceedWithInstallation']}}"
+        when:  
+          - not hostvars[inventory_hostname]['proceedWithInstallation']      
+--------------------
+          
+Another block is created with a *when* clause to execute the procedure if both devices are present. 
+
+The playbook proceeds with the following:
+
+- Create a volume group called *chatbotVG* with "sdb" and "sdc" devices using *lvg* ansible module.
+- Create a logical volume called *data* which size is 4 Gb using *lvol* ansible module.
+- Create a filesystem XFS on "/dev/mapper/chatbotVG-data" using *filesystem* ansible module.
+- Create a mount point called "/home/chatbot"  using *file* ansible module.
+- Mount "/dev/mapper/chatbotVG-data" on "/home/chatbot" using *mount* ansible module.
+
+So, the execution is pretty straighforward using *ansible-playbook* command.
+
+[source, bash]
+------------------
+# ansible-playbook chatbotCreateFilesystem.yml -i ./inventory
+
+PLAY [Creating the chatbot filesystem] ******************************************************************************************************************************************
+
+TASK [Gathering Facts] ***************************************************************************************************************************************
+ok: [192.168.56.119]
+
+TASK [checking for device /dev/sdb] **************************************************************************************************************************
+ok: [192.168.56.119]
+
+TASK [checking for device /dev/sdc] **************************************************************************************************************************
+ok: [192.168.56.119]
+
+TASK [Creating chatbot Volume group.] ************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Creating data Logical Volume.] *************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Creating a XFS filesystem on lvm /dev/mapper/chatbotVG-data.] ******************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Creating the mounting point /home/chatbot.] ************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Mount the  filesystem.] ********************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Error on disk creation results] ************************************************************************************************************************
+skipping: [192.168.56.119]
+
+PLAY RECAP ***************************************************************************************************************************************************
+192.168.56.119             : ok=8    changed=5    unreachable=0    failed=0    skipped=1    rescued=0    ignored=0
+
+------------------
+
+The playbook operates on the default value "hostsmanaged", nevertheless we can execute the playbook using different hosts, just by defining the "hosts2manage" variable on the command line like this:
+
+[source, bash]
+------------------
+# ansible-playbook chatbotCreateFilesystem.yml -i ./inventory --extra-vars "hosts2manage=all"
+------------------
+
+Also, Every task executed has some hints of what just happened. 
+
+* changed. It is shown when the task has been successfully executed and the action changes something in the remote host. This could be that, for example, the filesystem that did not exist was created.
+
+* ok: nothing was changed on the remote host because, by the idempotent nature, ansible determined nothing had to be done in order to get the result expected.
+
+* skipping: By a conditional condition, the task was skipped. In this playbook, a task that expects an error was not executed because there were no errorrs in the execution.
+
+[NOTE] 
+At this stage, the filesystem was created and mounted on "/home/chatbot". This directory will be used for cloning the github repository where the application is stored.
+
+[NOTE]
+Let's think about how we can reverse all these changes in a playbook.
+
+=== installing the application dependencies.
+
+The chatbot application is python 3 based, so we need to install python 3 on our remote servers. We are going to create a playbook for installing this package, but also check and install the required libraries if needed. When we say "if needed" we refer ourselves to the fact that ansible is an *idempotent tool*. Ansible will look to get to the desired state (installed). If the package or the libraries are already installed any of the actions associated will be executed.
+
+[NOTE] 
+Also, we will need to install *git* in order for the remote host to be able to clone the chatbot application repository.
+
+Let's start by creating this playbook.
+
+[NOTE] by now, we are creating independent Playbooks as big blocks, as far as simplicity of explanation is concerned. At the end we will be using the Ansible *import_playbook* directive to import every individual playbook and execute them as a whole.
+
+[source,bash]
+----------------------
+# vim chatbotInstallPythonDependencies.yml
+
+---
+  - name: Installing software dependencies
+    hosts: '{{ hosts2manage | default("managedhosts") }}'
+
+    become: yes
+    become_user: root
+    
+    gather_facts: no 
+    
+    tasks:
+    
+      - name: installing python 3
+        yum: 
+          name: python3
+          state: latest
+
+      - name: installing git
+        yum: 
+          name: git
+          state: latest
+   
+      - name: installing firewalld
+        yum: 
+          name: firewalld
+          state: latest
+   
+      - name: installing nltk
+        pip:
+          name: nltk
+          state: latest
+          extra_args: --no-cache-dir
+
+      - name: installing tflearn
+        pip:
+          name: tflearn
+          state: latest
+          extra_args: --no-cache-dir
+
+      - name: installing numpy
+        pip:
+          name: numpy
+          state: latest
+          extra_args: --no-cache-dir
+
+      - name: installing tensorflow
+        pip:
+          name: tensorflow
+          state: latest
+          extra_args: --no-cache-dir
+
+      - name: installing flask
+        pip:
+          name: flask
+          state: latest
+          extra_args: --no-cache-dir
+
+      - name: enable firewalld service
+        systemd:
+          name: firewalld
+          state: started
+          enabled: yes    
+----------------------
+
+We don't need to gather facts in this playbook, because we don´t need any host based variable to execute tasks, so we can speed up the execution of this playbook telling Ansible not to gather information from the server is operating on, with *gather_fact*.
+
+The hosts where Ansible is operating on are those present in the *managedhosts* group of the inventory created previously. In our case is the IP Address 192.168.56.119. 
+
+[NOTE]
+You need to change the IP address according to your servers.
+
+The tasks defined for this stage are:
+
+* First, we need to be sure python 3 is installed, otherwise ansible needs to make sure the latest version is installed properly. This is done by the *yum* module which needs the package name (in this case python3) and the *state*. This flag tells ansible to install the package if not present or update it to the latest version if needed.
+
+*- name: python3*
+*- state: latest*
+
+* GIT is also needed on the remote hosts. This is because in the following playbook we will need to clone the application repository. So, we use the *yum* module again to install it.
+
+*- name: git*
+*- state: latest*
+
+We also need to ensure firewalld is installed...
+
+* The following actions are related to the installation of some required libraries. In this case *nltk* for natural language processing, *numpy* for numerical calculations, *tflearn* and *tensorflow* for applying artificial intelligence to the chatbot, and *flask* for the creation of the web service delivered by webChat.py. The *pip* module only needs the *name* of the libraries that need to be installed.
+
+Finally at the end of the playbook we start the firewalld service and make it permanent using the "systemd" module.
+
+[source,bash]
+----------------------
+# ansible-playbook chatbotInstallPythonDependencies.yml -i ./inventory
+
+PLAY [Installing software dependencies] **********************************************
+
+TASK [installing python 3] ***********************************************************
+changed: [192.168.56.119]
+
+TASK [installing git] ****************************************************************
+changed: [192.168.56.119]
+
+TASK [installing firewalld] **********************************************************
+changed: [192.168.56.119]
+
+TASK [installing nltk] ***************************************************************
+changed: [192.168.56.119]
+
+TASK [installing tflearn] ************************************************************
+changed: [192.168.56.119]
+
+TASK [installing numpy] **************************************************************
+ok: [192.168.56.119]
+
+TASK [installing tensorflow] *********************************************************
+changed: [192.168.56.119]
+
+TASK [installing flask] **************************************************************
+changed: [192.168.56.119]
+
+TASK [enable firewalld service] ******************************************************
+changed: [192.168.56.119]
+
+PLAY RECAP ***************************************************************************
+192.168.56.119             : ok=9    changed=8    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+----------------------
+
+The first three tasks install python, git and firewalld, then it continues with the actions associated with libraries installation using the *module* pip. Each one is in charge of taking the library to the state desired, by default it is "installed". Finally firewalld is started for extra security.
+
+At the end of the execution output you can notice a *PLAY RECAP*, which in turns indicates that a number of things were changed, in this case the installation of python 3, git, firewalld, python libraries installation and if needed, the starting of firewalld service. 
+
+[source,bash]
+----------------------
+PLAY RECAP ***************************************************************************
+192.168.56.119             : ok=9    changed=8    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+----------------------
+
+[NOTE] 
+In this stage we are sure all prerequisites are met for installing the application.
+
+Now let's try to optimize this playbook. Remember the first directive of a developer... *Don't repeat yourself.*
+
+The following snipped playbook reflects some changes to optimize the playbook we wrote in the previous section.
+
+[source,bash]
+------------------------
+---
+  - name: Installing software dependencies
+  
+    hosts: '{{ hosts2manage | default("managedhosts") }}'
+
+    become: yes
+    become_user: root
+
+    gather_facts: no 
+    
+    tasks:
+      - name: Setting default values
+        set_fact: proceedWithInstallation=yes
+
+      - name: Installing required packages
+        block: 
+          - name: yum install...
+            yum: 
+              name: "{{ item }}"
+              state: latest
+            loop: 
+              - python3  
+              - git
+              - firewalld
+        rescue:
+          - name: Error installing required packages!
+            set_fact: proceedWithInstallation=no
+
+      - name: Installing required python libraries
+        block: 
+          - name: pip install...
+            pip: 
+              name: "{{ item }}"
+              state: latest
+              extra_args: --no-cache-dir
+            loop: 
+              - nltk
+              - tflearn
+              - numpy
+              - tensorflow
+              - flask
+        rescue:
+          - name: Error installing requires python libraries!
+            set_fact: proceedWithInstallation=no            
+
+      - name: enable firewalld service
+        systemd:
+          name: firewalld
+          state: started
+          enabled: yes
+------------------------
+
+We are using the *loop* clause on each package manager module for execute a block of code using a list. This list is defined after the *loop* clause sun "-" dash to each item to operate on.
+
+[source,bash]
+------------------------
+pip: 
+  name: "{{ item }}"
+  state: latest
+  extra_args: --no-cache-dir
+loop: 
+  - nltk
+  - tflearn
+  - numpy
+  - tensorflow
+  - flask
+------------------------
+
+Using a ninja2 template we can instruct the *pip* module to operate on name "{{ item }}", wich is instantiated for each element of the list... in this case, nltk, tflear, numpy, ...
+
+This way we can reduce the extension of the playbook and also make it more readable.
+
+[source,bash]
+----------------------
+# ansible-playbook chatbotInstallPythonDependencies.yml -i ./inventory
+
+PLAY [Installing software dependencies] **********************************************
+
+TASK [Setting default values] ********************************************************
+ok: [192.168.56.119]
+
+TASK [yum install...] ****************************************************************
+changed: [192.168.56.119] => (item=python3)
+changed: [192.168.56.119] => (item=git)
+changed: [192.168.56.119] => (item=firewalld)
+
+TASK [pip install...] ****************************************************************
+changed: [192.168.56.119] => (item=nltk)
+changed: [192.168.56.119] => (item=tflearn)
+ok: [192.168.56.119] => (item=numpy)
+changed: [192.168.56.119] => (item=tensorflow)
+changed: [192.168.56.119] => (item=flask)
+
+TASK [enable firewalld service] ******************************************************
+changed: [192.168.56.119]
+
+PLAY RECAP ***************************************************************************
+192.168.56.119             : ok=4    changed=3    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+----------------------
+
+=== Installing the software in its final destination
+
+For this phase, we need to clone the chatbot repository from github in the remote "/home/chatbot" filesystem. This directory contains all the sources and data needed to execute the ansible chat service.
+
+We also need to open ports to get the application running properly and create the configuration files to manage the application as a service using the systemd facility.
+
+[source,bash]
+----------------------
+# vim chatbotInstallSoftware.yml
+
+---
+  - hosts: managedhosts
+    name: Installing chatbot software
+    gather_facts: no
+    tasks:
+
+    - name: Cloning the chatbot software repository
+      git:
+        repo: 'https://github.com/ltoRhelDemos/python-ansible-chatbot.git'
+        dest: /home/chatbot/
+        force: yes
+
+    - name: copying ansibleChatbotEngine.service template to /etc/systemd/system
+      copy:
+        src: /home/chatbot/ansibleChatbotEngine.service
+        dest: /etc/systemd/system
+        remote_src: yes
+        mode: '0644'
+
+    - name: copying ansibleChatbotWebInterface.service template to /etc/systemd/system
+      copy:
+        src: /home/chatbot/ansibleChatbotWebInterface.service
+        dest: /etc/systemd/system
+        remote_src: yes
+        mode: '0644'
+        
+    - name: Openning the webservice ports
+      firewalld:
+        port: "{{ item }}"
+        permanent: yes
+        state: enabled
+      loop:
+        - 8080/tcp
+        - 9095/tcp
+      notify: "restart firewalld"
+
+    handlers:
+    - name: restarting the firewalld
+      service:
+        name: firewalld
+        state: restarted
+      listen: "restart firewalld"  
+----------------------
+
+The following steps are done:
+
+* Using the *git* module we are cloning the chatbot application repository on "/home/chatbot" filesystem
+* The *copy" module is used to copy the two configuration files needed for systemd to start, stop, enable, disable and get the status of our services, the chatbot engine and the web interface service.
+* Then we use the *firewalld* module in order to open the ports 8085 and 9095 (tcp) making them permanent.
+* If the ports are not opened then each task send a notification to the handler that is in charge of restarting the firewalld service.
+* Only if any of the ports are opened then the handler for restarting the firewalld is triggered, rebooting the service.
+
+[source,bash]
+----------------------
+# ansible-playbook chatbotInstallSoftware.yml -i ./inventory
+
+PLAY [Installing chatbot software] ***************************************************
+
+TASK [Setting reboot to "no" unless needed] ******************************************
+ok: [192.168.56.119]
+
+TASK [Clonning the chatbot software repository] **************************************
+changed: [192.168.56.119]
+
+TASK [copying ansibleChatbotEngine.service template to /etc/systemd/system] **********
+changed: [192.168.56.119]
+
+TASK [copying ansibleChatbotWebInterface.service template to /etc/systemd/system] ****
+changed: [192.168.56.119]
+
+TASK [Openning the webservice port 8080] *********************************************
+changed: [192.168.56.119] => (item=8080/tcp)
+changed: [192.168.56.119] => (item=9095/tcp)
+
+RUNNING HANDLER [restarting the firewalld] *******************************************
+changed: [192.168.56.119]
+
+PLAY RECAP ***************************************************************************
+192.168.56.119             : ok=6    changed=6    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+----------------------
+
+The playbook is executed successfully having 6 changes, in this case the repository cloning, the systemd configuration files copied to "/etc/systemd/system" directory for manipulating our programs as services, the firewalld update to open 8080 and 9095 tcp ports and the firewalld process restart (if needed).
+
+Now, our application is in the managed host ready to be executed to start the chat service. Let's first try to execute the engine manually on the managed host.
+
+[source,bash]
+----------------------
+# ssh root@192.168.56.119
+
+# cd /home/chatbot
+
+# python3 serviceProvider.py
+
+--------------------------------------------------------------------------
+
+  _____          _   _    _       _
+ |  __ \        | | | |  | |     | |
+ | |__) |___  __| | | |__| | __ _| |_
+ |  _  // _ \/ _` | |  __  |/ _` | __|
+ | | \ \  __/ (_| | | |  | | (_| | |_
+ |_|  \_\___|\__,_| |_|  |_|\__,_|\__|
+
+  Service Provider Demo
+  Alejandro Dirgan 2019
+
+
+--------------------------------------------------------------------------
+HELP:
+--------------------------------------------------------------------------
+to start server using other than default values use it with the parameters:
+   serviceProvider.py [port=9095] [homedir=/tmp] [serviceName=serviceProvider] [verbose=True]
+
+to stop the server:
+   touch /tmp/serviceProvider.stop
+
+to send command to server via command line where 0.0.0.0 is the ip (localhost)
+   echo about | nc 0.0.0.0 9095
+
+--------------------------------------------------------------------------
+INFO:
+--------------------------------------------------------------------------
+True
+/tmp/serviceProvider.pid
+(init) starting serviceProvider!
+(init) home directory is /tmp
+(init) listening on port 9095
+(init) this process is identified by: 14813
+Found data preprocessed on disk!
+found model on disk!
+(eventLoop) entering event loop!
+
+----------------------
+
+This service is event driven, which means that it will get into an endless loop for accepting requests. 
+
+From the control host we can try to access the engine with Ncat command.
+
+[NOTE]
+The syntax is very simple. Use the command "chat", then the parameter "question" followed by an equal sign "=" and the question substituting the spaces by underscores "_"
+
+[source,bash]
+----------------------
+# echo chat question=who_are_you? | nc 192.168.56.119 9095
+
+{"status": "(OK)", "response": {"tag": "who", "answer": "I am a robot that answers questions about Ansible"}}
+
+# echo chat question=who_are_you? | nc 192.168.56.119 9095
+
+{"status": "(OK)", "response": {"tag": "who", "answer": "I am a good chatter, specially if we talk about Ansible"}}
+
+# echo chat question=are_you_a_robot? | nc 192.168.56.119 9095
+
+{"status": "(OK)", "response": {"tag": "who", "answer": "I am a robot that answers questions about Ansible"}}
+
+----------------------
+
+As you can see, the engine is able to classify your questions and respond accordingly. The syntax for asking questions is very simple.
+
+If we need to stop the service, we only are required to send a "stop" directive.
+
+[source,bash]
+----------------------
+# echo stop | nc 192.168.56.119 9095
+----------------------
+
+[NOTE] 
+Because this is toy service provider there is not security associated for stopping the service arbitrarily.
+
+*The webChat*
+
+Let's try the web interface so we can be sure everything is ok so far.
+
+In another ssh session connected to the managed host start the webChat.py program.
+
+[source,bash]
+----------------------
+# cd /home/chatbot
+
+# python3 webChat.py
+
+ * Serving Flask app "webChat" (lazy loading)
+ * Environment: production
+   Use a production WSGI server instead.
+ * Debug mode: on
+ * Running on http://0.0.0.0:8080/ (Press CTRL+C to quit)
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 306-602-425
+192.168.56.1 - - [14/Jan/2020 17:22:35] "GET / HTTP/1.1" 200 -
+192.168.56.1 - - [14/Jan/2020 17:22:35] "GET /favicon.ico HTTP/1.1" 404 -
+
+----------------------
+
+For accessing the service, just start a browser and type *http://192.168.56.119:8080/chat*
+
+If everything is ok, the following interface will be shown in the browser.
+
+image::webChat.png[Ansible chatbot Web Interface]
+
+Another way to interact with the chatbot is using its API directly.
+
+From the browser access *http://192.168.56.119:8080/api?command=chat&question=who_are_you*
+
+The response on the browser should be:
+
+[source,bash]
+----------------------
+{
+"response": {
+"answer": "I am a good chatter, specially if talk about Ansible",
+"tag": "who"
+},
+"status": "(OK)"
+}
+----------------------
+
+[NOTE] 
+
+Now it is time to start the application as a service and automate the application starting procedure with systemd. That is the goal of the following playbook.
+
+=== Automating the starting of the chat service
+
+Now that we are sure the application is installed and everything goes well it's time to automate the service start at boot time.
+
+[source,bash]
+----------------------
+# vim chatbotStartServices.yml
+---
+  - hosts: managedhosts
+    name: Starting chatbot services
+    gather_facts: no
+
+    tasks:
+
+      - name: enable ansibleChatbotEngine service
+        systemd:
+          name: ansibleChatbotEngine
+          state: started
+          enabled: yes
+
+      - name: enable ansibleChatbotWebInterface service
+        systemd:
+          name: ansibleChatbotWebInterface
+          state: started
+          enabled: yes
+----------------------
+
+Enabling the services is an easy task using *systemd module*. For both services we are going to start them with the *enable* directive in order to ansible, not only to start the services, but making them automatically restarting at boot time.
+
+Let's execute the playbook.
+
+[source,bash]
+----------------------
+# ansible-playbook chatbotStartServices.yml -i ./inventory
+
+PLAY [Starting chatbot services] *************************************************************************************************************************
+
+TASK [enable ansibleChatbot service] *************************************************************************************************************************
+changed: [192.168.56.126]
+
+TASK [enable ansibleChatbotWebInterface service] *************************************************************************************************************************
+changed: [192.168.56.126]
+
+PLAY RECAP **************************************************************************************************************
+192.168.56.126             : ok=2    changed=2    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+----------------------
+
+After the execution we see that both services were changed to *started*.
+
+The goal of the playbook is, finally, having the chatbot service up & running. After this we can check the service on the browser using the following address *https://192.168.56.119:8080/chat*.
+
+=== Booting the server and check the services are Up & Running
+
+This is the final step to be done in order to guarantee the service will survive to the server boot. In this case, the following playbook only execute a reboot and wait for the server to boot up.
+
+[source,bash]
+----------------------
+---
+  - hosts: managedhosts
+    name: Rebooting...
+    gather_facts: no
+    
+    tasks:
+    
+    - name: Reboot host and wait for it to restart
+      reboot:
+        msg: "Reboot initiated by Ansible"
+        connect_timeout: 5
+        reboot_timeout: 60
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: "systemctl is-active ansibleChatbotEngine --quiet && systemctl is-active --quit ansibleChatbotWebInterface"
+----------------------
+
+The playbook uses the *reboot module* in which we are specifying to wait 30 seconds until the server is up again. Also look at the test_command parameter at the end. We are using a composed bash shell command using systemd with is-active parameter which, is both service are up, returns 0. 
+
+[source,bash]
+----------------------
+# ansible-playbook chatbotRebootServer.yml -i ./inventory
+
+PLAY [Rebooting...] *************************************************************************************************
+
+TASK [Reboot host and wait for it to restart] *********************************************************************************************************************
+changed: [192.168.56.126]
+
+PLAY RECAP **********************************************************************************************************
+192.168.56.126             : ok=1    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+
+----------------------
+
+The result is ok=1, changed=1. In this case the reboot was executed successfully and the test_command passed.
+
+=== Putting it all together.
+
+We have been creating ans executing different playbooks for different tasks:
+
+* *chatbotCreateFileSystem.yml* for Creating the filesystem and mount /home/chatbot to receive the application
+* *chatbotInstallPythonDependencies.yml* for Installing all software dependencies
+* *chatbotInstallSoftware.yml* for installing the application itself and some configuration files
+* *chatbotStartServices.yml* for starting the services and make them permanent after reboot
+* *chatbotRebootServer.yml* for rebooting the server and check the services were invoked successfully after reboot
+
+This completes the whole installation cycle of the chatbot. But how to execute this using one playbook?.
+
+Two ways we can use to create a unique playbook that can be executed by ansible.
+
+* Using import_playbook in order to import all the playbooks created previously. 
+
+Let's create a masterPlaybook.
+
+[source,bash]
+----------------------
+# vim chatbotMasterPlaybook.yml
+
+---
+
+  - import_playbook: chatbotCreateFilesystem.yml
+  - import_playbook: chatbotInstallPythonDependencies.yml
+  - import_playbook: chatbotInstallSoftware.yml
+  - import_playbook: chatbotStartServices.yml
+  - import_playbook: chatbotRebootServer.yml
+----------------------
+
+After saving this playbook, the execution will be importing the previously created playbooks and those will be executed in the order they appear.
+
+[source,bash]
+----------------------
+# ansible-playbook chatbotMasterPlaybook.yml -i ./inventory
+
+PLAY [Creating chatbot filesystem] ******************************************************************************************************************************************
+
+TASK [Gathering Facts] ***************************************************************************************************************************************
+ok: [192.168.56.119]
+
+TASK [checking for device /dev/sdb] **************************************************************************************************************************
+ok: [192.168.56.119]
+
+TASK [checking for device /dev/sdc] **************************************************************************************************************************
+ok: [192.168.56.119]
+
+TASK [Creating chatbot Volume group.] ************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Creating data Logical Volume.] *************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Creating a XFS filesystem on lvm /dev/mapper/chatbotVG-data.] ******************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Creating the mounting point /home/chatbot.] ************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Mount the  filesystem.] ********************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Error on disk creation results] ************************************************************************************************************************
+skipping: [192.168.56.119]
+
+PLAY [Installing software dependencies] ******************************************************************************************************************************************
+
+TASK [installing python 3.6] *********************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [installing git] ****************************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [installing nltk] ***************************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [installing tflearn] ************************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [installing numpy] **************************************************************************************************************************************
+ok: [192.168.56.119]
+
+TASK [installing tensorflow] *********************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [installing flask] **************************************************************************************************************************************
+changed: [192.168.56.119]
+
+PLAY [Installing chatbot software] ******************************************************************************************************************************************
+
+TASK [Cloning the chatbot software repository] **************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [copying ansibleChatbotEngine.service template to /etc/systemd/system] ****************************************************************************************
+changed: [192.168.56.119]
+
+TASK [copying ansibleChatbotWebInterface.service template to /etc/systemd/system] ****************************************************************************
+changed: [192.168.56.119]
+
+TASK [Opening the webservice port 8080] *********************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [Opening the engine port 9095] *************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [restarting the firewalld] ******************************************************************************************************************************
+changed: [192.168.56.119]
+
+PLAY [Starting chatbot services] ******************************************************************************************************************************************
+
+TASK [enable ansibleChatbotEngine service] *************************************************************************************************************************
+changed: [192.168.56.119]
+
+TASK [enable ansibleChatbotWebInterface service] *************************************************************************************************************
+changed: [192.168.56.119]
+
+PLAY [Rebooting...] ******************************************************************************************************************************************
+
+TASK [Reboot host and wait for it to restart] ****************************************************************************************************************
+changed: [192.168.56.119]
+
+PLAY RECAP ***************************************************************************************************************************************************
+192.168.56.119             : ok=24   changed=20   unreachable=0    failed=0    skipped=1    rescued=0    ignored=0
+
+----------------------
+
+After this execution, the application will be up and running and the server will be accessible to interact with.
+
+* Another way to consolidate all the playbooks created is saving all individual files in a consolidated playbook. This way only one file needs to be saved and executed. The drawbacks of this approach is the scalability. The modularity of manipulating isolated playbooks and then combined on one master using imports is much more maintainable, easy to read and scalable.
+
+=== How to use Ansible Tower to speed up and get more control on Ansible.
+
+From Ansible Tower Documentation we can obtain a very brief description of what Tower is and how it can help us to be more productives.
+
+"Ansible Tower (formerly ‘AWX’) is a web-based solution that makes Ansible even more easy to use for IT teams of all kinds. It’s designed to be the hub for all of your automation tasks.
+
+Tower allows you to control access to who can access what, even allowing sharing of SSH credentials without someone being able to transfer those credentials. Inventory can be graphically managed or synced with a wide variety of cloud sources. It logs all of your jobs, integrates well with LDAP, and has an amazing browsable REST API. Command line tools are available for easy integration with Jenkins as well. Provisioning callbacks provide great support for autoscaling topologies."
+
+The first step we need to take is installing Tower on a server. For this workshop's purpose we are going to install the Tower application in the same server as ansible was installed in the first place. For this, we propose to create a playbook for automating this installation.
+
+login in the ansile server, go to /root/ansible and create the following playbook.
+
+[source,bash]
+---------------------
+# vim installTower.yml
+
+---
+  - hosts: tower
+
+    name: Ansible Tower Installation
+    gather_facts: no
+
+    vars:
+      dest: '/root/tower'
+      source: 'https://releases.ansible.com/ansible-tower/setup/ansible-tower-setup-latest.tar.gz'
+      filename: 'ansible-tower-setup-latest.tar.gz'
+
+    tasks:
+
+    - name: installing tar package
+      yum:
+        name: tar
+        state: latest
+
+    - name: Create a directory if it does not exist
+      file:
+        path: '{{ dest }}'
+        state: directory
+        mode: '0700'
+
+    - name: Getting the software
+      get_url:
+        url: '{{ source }}'
+        dest: '{{ dest }}/{{ filename }}'
+
+    - name: Extracting package
+      unarchive:
+        src: '{{ dest }}/ansible-tower-setup-latest.tar.gz'
+        dest: '{{ dest }}/.'
+        remote_src: yes
+
+    - name: get the final directory
+      shell: 'ls -d {{dest}}/*/'
+      register: finalDir
+
+    - name: Setting admin password
+      lineinfile:
+        path: '{{ finalDir.stdout }}inventory'
+        state: present
+        regexp: "^admin_password=''"
+        line: "admin_password='ltodemos'"
+
+    - name: Setting database password
+      lineinfile:
+        path: '{{ finalDir.stdout }}inventory'
+        state: present
+        regexp: "^pg_password=''"
+        line: "pg_password='ltodemos'"
+
+    - name: Setting rabbit mq password
+      lineinfile:
+        path: '{{ finalDir.stdout }}inventory'
+        state: present
+        regexp: "^rabbitmq_password=''"
+        line: "rabbitmq_password='ltodemos'"
+
+    - name: Installing Tower
+      shell: './setup.sh'
+      args:
+        chdir: '{{ finalDir.stdout }}'
+      register: output
+      
+    - name: Reboot host and wait for it to restart
+      reboot:
+        msg: "Rebooting the server"
+        connect_timeout: 5
+        reboot_timeout: 600
+        pre_reboot_delay: 0
+        post_reboot_delay: 30
+        test_command: "whoami"
+
+---------------------
+
+This playbook can be executed using the ansible-playbook command as follows. The inventory file need to be modified though.
+
+[source,bash]
+---------------------------------
+# vim inventory
+
+[managedhosts]
+192.168.56.119
+
+[tower]
+192.168.56.120
+
+# ansible-playbook installTower -i .
+
+PLAY [Ansible Tower Installation] ****************************************************************************************************************************
+
+TASK [installing tar package] ********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Create a directory if it does not exist] ***************************************************************************************************************
+ok: [localhost]
+
+TASK [Getting the software] **********************************************************************************************************************************
+ok: [localhost]
+
+TASK [Extracting package] ************************************************************************************************************************************
+changed: [localhost]
+
+TASK [get the final directory] *******************************************************************************************************************************
+changed: [localhost]
+
+TASK [Setting admin password] ********************************************************************************************************************************
+changed: [localhost]
+
+TASK [Setting database password] *****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Setting rabbit mq password] ****************************************************************************************************************************
+changed: [localhost]
+
+TASK [Installing Tower] **************************************************************************************************************************************
+changed: [localhost]
+
+TASK [Reboot host and wait for it to restart] ****************************************************************************************************************
+---------------------------------
+
+The playbook change the *inventory* configuration file in those lines where a password is needed. In particular for *admin account*. The password we are changing to is *ltodemos*. *Admin + ltodemos* is going to be our credentials to access the service using:
+
+[source,bash]
+---------------------------------
+http://192.168.56.120
+---------------------------------
+
+The login screen will prompt for a user and a password. Use *admin* username and *ltodemos* password to access tower app from the browser.
+
+image::tower-login.png[Login Screen]
+
+To use Tower we need to request a Trial license in http://ansible.con/license.
+
+image::tower-license.png[Tower license can be purchased or requested as a Trial license to test the product]
+
+When accessing Tower and register it using the license obtained in the previous step you'll be able to see the dashboard as we depicted it in the following image.
+
+image::tower-dashboard.png[Tower Dashboard]
+
+Now it is time to create a Job Template. From the Ansible Tower Documentation we have extracted:
+
+"A job template is a definition and set of parameters for running an Ansible job. Job templates are useful to execute the same job many times. Job templates also encourage the reuse of Ansible playbook content and collaboration between teams. While the REST API allows for the execution of jobs directly, Tower requires that you first create a job template."
+
+A job template is a visual realization of an ansible-playbook command and all the flags needed for execute the job. A job template defines the combination of a playbook from a project, an inventory, a credential and any other Ansible parameters required to run.
+
+*Creating a Project*
+
+Let's establish what we need to do for creating and executing a job template. In the first place we need to create a project. From official documentation "A Project is a logical collection of Ansible playbooks, represented in Tower." So, projects are mechanisms of defining a set of playbooks to pursue a goal.
+
+For example, in our workshop, our goal is to install the ansible chatbot application. So, we need to create a project where all the playbooks created previously need to be defined. For doing this, we have two mechanisms. The first one is the recommended one which is to define a SCN repository for storing all the components of pur playbooks. 
+
+The second method is using a local place to store the playbooks. For simplicity we are going to use this last method. 
+
+Ansible tower maintains /var/lib/awx/projects/ in which we can create sub-folders for our projects. We need to be sure the folders and its content are accessible by the user *awx*.
+
+[source,bash]
+-------------------------
+# cd /var/lib/awx/projects/
+# git clone https://github.com/ltoRhelDemos/python-ansible-chatbot-playbooks.git
+# chown -R awx:awx /var/lib/awx/projects/python-ansible-chatbot-playbooks
+-------------------------
+
+We have cloned the repository now all the playbooks created in this workshop are part of a project directory. This is going to be used in the project creation from tower gui. Go to project and push the PLUS button, then fill out all the values as the following image depicted.
+
+image::tower-project.png[adding a project for chatbot installation]
+
+*Creating Credentials*
+
+In precious parts of this workshop we generated a ssh key on the ansible server, then copied it to each ansible host (managedhosts) where the playbooks were going to be executed. way there is no need to authenticate against those servers using username and password. Now we can do the same, but instead we are going to create a credential for these servers in order to authenticate using the root account. First select Credentials at the left menu and then push the PLUS button.
+
+image::tower-credentials-add.png[Adding a credential]
+
+Then fill out all the fields as depicted in the following image.
+
+image::tower-credentials-machine.png[Credential creation]
+
+After saving the credential is ready to be used in our next step.
+
+*Creating an Inventory*
+
+As in the command line, Tower requires an inventory to work against. In this case we are going to create one, indicating the managed host where we are going to operate with our job template.
+
+Follow the steps depicted in the following images.
+
+Push the PLUS button then Inventory in the pull down menu
+
+image::tower-inventory-add.png[]
+
+Fill out the fields and push the save button
+
+image::tower-inventory-name.png[]
+
+Push the groups button and then the PLUS button
+
+image::tower-inventory-groups.png[]
+
+Fill out the fields and push the save button
+
+image::tower-inventory-groups-name.png[]
+
+Now push the hosts button and the the PLUS button
+
+image::tower-inventory-hosts.png[]
+
+Fill out the fields and push the save button
+
+image::tower-inventory-hosts-name.png[]
+
+Push the groups button and in the emergent window select managedhosts group previously created, then press save
+
+image::tower-inventory-hosts-groups.png[]
+
+After saving the host is assigned to the managedhosts group
+
+image::tower-inventory-hosts-groups-assigned.png[]
+
+*Creating a Job Template*
+
+Finally we are going to create a job template that we could execute or lauch to execute the chatbot installation playbooks.
+
+In our case, we are going to create the template using the chatbotMasterPlaybook.yml
+
+Follow the steps depicted in the following images.
+
+Choose the Templates menu item on the left and push the PLUS button choosing Job template in the pull-down menu.
+
+image::tower-template-add.png[]
+
+Fill out all the fields in the image, choosing the inventory, project, playbook and credentials to be used, then save.
+
+image::tower-template-name.png[]
+
+After saving the template is going to be ready to be launched, in this case becoming a running job.
+
+image::tower-template-list.png[]
+
+When we launch the template, a job is created and automatically redirected to its information screen where the progress screen could be observed to understand how the playbook is being executed.
+
+image::tower-template-job.png[]
+
+The playbook is executed and the installation is completed with no errors. At this point in time the application is up and running after the server reboots and systemd starts the engine and the webchat services.
+
+Let's access the application.
+
+[source,bash]
+------------------------------
+http://192.168.56.119:8080/chat
+------------------------------
+
+image::chatbot.png[]
+
+This concludes this workshop. I Hope this information will be useful to realize in your own terms how ansible can help you to be more productive and more consistent in your daily work!
+
+
+== SURVEY
+
+https://forms.gle/PBMxAMFKbYG7bLZA8[Evaluate US]
+
+
+
+
+
+
